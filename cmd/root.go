@@ -91,7 +91,10 @@ var rootCmd = &cobra.Command{
 		slog.Info("Cloudflare API client initialized successfully.")
 
 		slog.Info("Fetching DNS records...", "zone_id", zoneID)
-		records, _, err := cfAPI.ListDNSRecords(context.Background(), cloudflare.ZoneIdentifier(zoneID), cloudflare.ListDNSRecordsParams{})
+		records, _, err := cfAPI.ListDNSRecords(context.Background(), cloudflare.ZoneIdentifier(zoneID), cloudflare.ListDNSRecordsParams{
+			Type:    recordType,
+			Content: oldIP,
+		})
 		if err != nil {
 			slog.Error("Failed to fetch DNS records from cloudflare", "error", err)
 			os.Exit(1)
@@ -102,20 +105,18 @@ var rootCmd = &cobra.Command{
 		slog.Info("Scanning records to find matches for update...", "old-ip", oldIP, "type", recordType)
 
 		for _, record := range records {
-			if record.Type == recordType && record.Content == oldIP {
-				slog.Info("Found record to update", "name", record.Name, "type", recordType, "content", record.Content)
-				params := cloudflare.UpdateDNSRecordParams{
-					Content: finalNewIP,
-					ID:      record.ID,
-				}
-				_, err := cfAPI.UpdateDNSRecord(context.Background(), cloudflare.ZoneIdentifier(zoneID), params)
-				if err != nil {
-					slog.Error("Failed to update DNS record", "name", record.Name, "error", err)
-					continue
-				}
-				slog.Info("Successfully updated record", "name", record.Name, "new_ip", finalNewIP)
-				updatedCount++
+			slog.Info("Found record to update", "name", record.Name, "type", recordType, "content", record.Content)
+			params := cloudflare.UpdateDNSRecordParams{
+				Content: finalNewIP,
+				ID:      record.ID,
 			}
+			_, err := cfAPI.UpdateDNSRecord(context.Background(), cloudflare.ZoneIdentifier(zoneID), params)
+			if err != nil {
+				slog.Error("Failed to update DNS record", "name", record.Name, "error", err)
+				continue
+			}
+			slog.Info("Successfully updated record", "name", record.Name, "new_ip", finalNewIP)
+			updatedCount++
 
 		}
 		if updatedCount == 0 {
